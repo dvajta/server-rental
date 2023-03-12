@@ -48,7 +48,7 @@ class CronController extends Controller
 
         try {
             $token = Yii::$app->security->generateRandomString() . '_' . time();
-            $user->verification_token = $token;
+            $user->auth_token = $token;
             $user->save();
             $this->stderr($token . "\n");
         } catch (\Throwable $e) {
@@ -62,13 +62,13 @@ class CronController extends Controller
      */
     private function checkAliveToken(User $user): ?string
     {
-        if ($user->verification_token === null) {
+        if ($user->auth_token === null) {
             return null;
         }
 
-        $timestamp = (int) substr($user->verification_token, strrpos($user->verification_token, '_') + 1);
+        $timestamp = (int) substr($user->auth_token, strrpos($user->auth_token, '_') + 1);
         if ($timestamp + self::TOKEN_LIFETIME >= time()) {
-            return $user->verification_token;
+            return $user->auth_token;
         }
 
         return null;

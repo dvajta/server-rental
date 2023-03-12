@@ -13,6 +13,7 @@ use yii\web\IdentityInterface;
  *
  * @property integer $id
  * @property string $username
+ * @property string $auth_token
  * @property string $password_hash
  * @property string $password_reset_token
  * @property string $verification_token
@@ -54,6 +55,7 @@ class User extends ActiveRecord implements IdentityInterface
     public function rules()
     {
         return [
+            ['auth_token', 'string'],
             ['status', 'default', 'value' => self::STATUS_INACTIVE],
             ['status', 'in', 'range' => [self::STATUS_ACTIVE, self::STATUS_INACTIVE, self::STATUS_DELETED]],
         ];
@@ -114,6 +116,18 @@ class User extends ActiveRecord implements IdentityInterface
         return static::findOne([
             'verification_token' => $token,
             'status' => self::STATUS_INACTIVE
+        ]);
+    }
+
+    /**
+     * @param $token
+     * @return User|null
+     */
+    public static function findByAuthToken($token)
+    {
+        return static::findOne([
+            'auth_token' => $token,
+            'status' => self::STATUS_ACTIVE
         ]);
     }
 

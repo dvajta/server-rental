@@ -31,7 +31,7 @@ return [
             'targets' => [
                 [
                     'class' => \yii\log\FileTarget::class,
-                    'levels' => ['error', 'warning'],
+                    'levels' => ['error', 'warning', 'info'],
                 ],
             ],
         ],

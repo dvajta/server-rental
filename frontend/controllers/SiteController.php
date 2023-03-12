@@ -2,6 +2,9 @@
 
 namespace frontend\controllers;
 
+use common\models\User;
+use common\models\UserJsonData;
+use frontend\models\AuthForm;
 use frontend\models\ResendVerificationEmailForm;
 use frontend\models\VerifyEmailForm;
 use Yii;
@@ -15,12 +18,14 @@ use frontend\models\PasswordResetRequestForm;
 use frontend\models\ResetPasswordForm;
 use frontend\models\SignupForm;
 use frontend\models\ContactForm;
+use yii\web\NotFoundHttpException;
 
 /**
  * Site controller
  */
 class SiteController extends Controller
 {
+    private const TOKEN_LIFETIME = 300;
     /**
      * {@inheritdoc}
      */
@@ -75,7 +80,11 @@ class SiteController extends Controller
      */
     public function actionIndex()
     {
-        return $this->render('index');
+        $model = new AuthForm();
+
+        return $this->render('index', [
+            'model' => $model
+        ]);
     }
 
     /**
@@ -255,5 +264,87 @@ class SiteController extends Controller
         return $this->render('resendVerificationEmail', [
             'model' => $model
         ]);
+    }
+
+    public function actionToken()
+    {
+        if (!$this->request->isAjax){
+            throw new NotFoundHttpException('The requested page does not exist.');
+        }
+
+        $time_start = microtime(true);
+        $memory_start = memory_get_usage();
+
+        [$data, $token, $type] = $this->getData();
+
+        if (!$user = User::findByAuthToken(trim($token))) {
+            return 'User not found';
+        }
+
+        if (!$this->isAliveToken($token)) {
+            Yii::$app->user->logout();
+            Yii::warning(sprintf('The authentication token for the user "%s" is not alive: %s', $user->username, $token));
+            return 'Token is not alive';
+        }
+
+        if (Yii::$app->user->isGuest) {
+            $webUser = Yii::$app->user;
+            $webUser->login($user);
+        }
+
+        if (!$dataId = $this->saveData($data, $user->id, $type)) {
+            Yii::error(sprintf('Data not saved for the user "%s" and token %s', $user->username, $token));
+            return 'Data not saved';
+        }
+
+        $time_end = microtime(true);
+        $memory_end = memory_get_usage();
+
+        $time = $time_end -$time_start;
+        $memory = $memory_end - $memory_start;
+
+        return json_encode(['id' => $dataId, 'time' => $time, 'memory' => $memory], JSON_THROW_ON_ERROR);
+    }
+
+    private function saveData(string $data, int $userId, string $type): ?int
+    {
+        $userJsonData = new UserJsonData();
+        $userJsonData->user_id = $userId;
+        $userJsonData->type = $type;
+        $userJsonData->json = $data;
+        return $userJsonData->save() ? $userJsonData->id : null;
+    }
+
+    /**
+     * @param string $token
+     * @return bool
+     */
+    private function isAliveToken(string $token): bool
+    {
+        $timestamp = (int) substr($token, strrpos($token, '_') + 1);
+
+        return $timestamp + self::TOKEN_LIFETIME >= time();
+    }
+
+    /**
+     * @return array
+     */
+    private function getData(): array
+    {
+        $token = $this->request->getHeaders()->get('X-MyToken');
+        switch (true) {
+            case $this->request->isGet:
+                return [
+                    json_encode($this->request->get()['json'], JSON_THROW_ON_ERROR),
+                    $token,
+                    'get'
+                ];
+
+            default:
+                return [
+                    json_encode($this->request->post()['json'], JSON_THROW_ON_ERROR),
+                    $token, 'post'
+                ];
+        }
     }
 }
