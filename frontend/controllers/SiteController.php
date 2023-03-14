@@ -5,10 +5,12 @@ namespace frontend\controllers;
 use common\models\User;
 use common\models\UserJsonData;
 use frontend\models\AuthForm;
+use frontend\models\AuthUpdateForm;
 use frontend\models\ResendVerificationEmailForm;
 use frontend\models\VerifyEmailForm;
 use Yii;
 use yii\base\InvalidArgumentException;
+use yii\helpers\Json;
 use yii\web\BadRequestHttpException;
 use yii\web\Controller;
 use yii\filters\VerbFilter;
@@ -26,6 +28,8 @@ use yii\web\NotFoundHttpException;
 class SiteController extends Controller
 {
     private const TOKEN_LIFETIME = 300;
+    private array $error = [];
+    private ?string $accessText = null;
     /**
      * {@inheritdoc}
      */
@@ -81,9 +85,11 @@ class SiteController extends Controller
     public function actionIndex()
     {
         $model = new AuthForm();
+        $modelUpdate = new AuthUpdateForm();
 
         return $this->render('index', [
-            'model' => $model
+            'model' => $model,
+            'modelUpdate' => $modelUpdate
         ]);
     }
 
@@ -266,7 +272,11 @@ class SiteController extends Controller
         ]);
     }
 
-    public function actionToken()
+    /**
+     * @return false|string
+     * @throws NotFoundHttpException
+     */
+    public function actionAddWithToken(): string
     {
         if (!$this->request->isAjax){
             throw new NotFoundHttpException('The requested page does not exist.');
@@ -275,21 +285,14 @@ class SiteController extends Controller
         $time_start = microtime(true);
         $memory_start = memory_get_usage();
 
-        [$data, $token, $type] = $this->getData();
+        [$data, $token, $type] = $this->getRequestData();
 
         if (!$user = User::findByAuthToken(trim($token))) {
             return 'User not found';
         }
 
-        if (!$this->isAliveToken($token)) {
-            Yii::$app->user->logout();
-            Yii::warning(sprintf('The authentication token for the user "%s" is not alive: %s', $user->username, $token));
-            return 'Token is not alive';
-        }
-
-        if (Yii::$app->user->isGuest) {
-            $webUser = Yii::$app->user;
-            $webUser->login($user);
+        if (!$this->isAccess($token, $user)) {
+            return $this->accessText;
         }
 
         if (!$dataId = $this->saveData($data, $user->id, $type)) {
@@ -297,15 +300,108 @@ class SiteController extends Controller
             return 'Data not saved';
         }
 
-        $time_end = microtime(true);
-        $memory_end = memory_get_usage();
+        $indicators = $this->calculateIndicators($time_start, $memory_start);
 
-        $time = $time_end -$time_start;
-        $memory = $memory_end - $memory_start;
-
-        return json_encode(['id' => $dataId, 'time' => $time, 'memory' => $memory], JSON_THROW_ON_ERROR);
+        return 'The request was successful (ID = ' . $dataId . '): ' . Json::encode($indicators);
     }
 
+    /**
+     * @return string
+     * @throws NotFoundHttpException
+     */
+    public function actionUpdateWithToken(): string
+    {
+        if (!$this->request->isAjax){
+            throw new NotFoundHttpException('The requested page does not exist.');
+        }
+
+        $time_start = microtime(true);
+        $memory_start = memory_get_usage();
+
+        [$code, $id, $token, $type] = $this->getRequestData();
+
+        if (!$user = User::findByAuthToken(trim($token))) {
+            return 'User not found!';
+        }
+
+        if (!$this->isAccess($token, $user)) {
+            return $this->accessText;
+        }
+
+        if (!$this->updateData($user->id, $code, $id, $type)) {
+            Yii::error(sprintf('Data not updated for the user "%s" and token %s', $user->username, $token));
+            return 'Data not updated! ' . Json::encode($this->error) ?? '';
+        }
+
+        $indicators = $this->calculateIndicators($time_start, $memory_start);
+
+        return 'The request was successful: ' . Json::encode($indicators);
+    }
+
+    /**
+     * @param string $token
+     * @param User $user
+     * @return bool
+     */
+    private function isAccess(string $token, User $user): bool
+    {
+        if (!$this->isValidToken($token)) {
+            Yii::$app->user->logout();
+            Yii::warning(sprintf('The authentication token for the user "%s" is not alive: %s', $user->username, $token));
+            $this->accessText = 'Token is not valid!';
+            return false;
+        }
+
+        if (Yii::$app->user->isGuest) {
+            $webUser = Yii::$app->user;
+            $webUser->login($user);
+        }
+        return true;
+    }
+
+    /**
+     * @param int $userId
+     * @param string $code
+     * @param int $id
+     * @param string $type
+     * @return bool
+     */
+    private function updateData(int $userId, string $code, int $id, string $type): bool
+    {
+        $userJsonItem = UserJsonData::find()->where(['user_id' => $userId, 'id' => $id])->one();
+        if (!$userJsonItem) {
+            $this->error[] = 'Entry no!';
+            return false;
+        }
+
+        $objData = Json::decode($userJsonItem->json, false);
+
+        foreach(explode(",", $code) as $line) {
+            try {
+                eval(''. $line . ';');
+            } catch (\Throwable $e) {
+                $this->error[] = $e->getMessage();
+                continue;
+            }
+
+        }
+
+        if ($this->error) {
+            return false;
+        }
+
+        $json = Json::encode($objData);
+        $userJsonItem->json = $json;
+        $userJsonItem->type = $type;
+        return $userJsonItem->save();
+    }
+
+    /**
+     * @param string $data
+     * @param int $userId
+     * @param string $type
+     * @return int|null
+     */
     private function saveData(string $data, int $userId, string $type): ?int
     {
         $userJsonData = new UserJsonData();
@@ -316,10 +412,26 @@ class SiteController extends Controller
     }
 
     /**
+     * @param $time_start
+     * @param $memory_start
+     * @return array
+     */
+    private function calculateIndicators($time_start, $memory_start): array
+    {
+        $time_end = microtime(true);
+        $memory_end = memory_get_usage();
+
+        $time = $time_end - $time_start;
+        $memory = $memory_end - $memory_start;
+
+        return ['time' => $time, 'memory' => $memory];
+    }
+
+    /**
      * @param string $token
      * @return bool
      */
-    private function isAliveToken(string $token): bool
+    private function isValidToken(string $token): bool
     {
         $timestamp = (int) substr($token, strrpos($token, '_') + 1);
 
@@ -329,22 +441,21 @@ class SiteController extends Controller
     /**
      * @return array
      */
-    private function getData(): array
+    private function getRequestData(): array
     {
         $token = $this->request->getHeaders()->get('X-MyToken');
         switch (true) {
             case $this->request->isGet:
-                return [
-                    json_encode($this->request->get()['json'], JSON_THROW_ON_ERROR),
-                    $token,
-                    'get'
-                ];
+                if (isset( $this->request->get()['json'])) {
+                    return [$this->request->get()['json'], $token, 'get'];
+                }
+                return [$this->request->get()['code'], $this->request->get()['id'], $token, 'get'];
 
             default:
-                return [
-                    json_encode($this->request->post()['json'], JSON_THROW_ON_ERROR),
-                    $token, 'post'
-                ];
+                if (isset( $this->request->post()['json'])) {
+                    return [$this->request->post()['json'], $token, 'post'];
+                }
+                return [$this->request->post()['code'], $this->request->post()['id'], $token, 'post'];
         }
     }
 }
