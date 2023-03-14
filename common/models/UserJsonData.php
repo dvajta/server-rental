@@ -5,6 +5,7 @@ namespace common\models;
 use Yii;
 use yii\behaviors\TimestampBehavior;
 use yii\db\Expression;
+use yii\helpers\Json;
 
 /**
  * This is the model class for table "user_json_data".
@@ -66,5 +67,24 @@ class UserJsonData extends \yii\db\ActiveRecord
             'created_at' => 'Created At',
             'updated_at' => 'Updated At',
         ];
+    }
+
+    /**
+     * @param $jsonData
+     * @return string
+     */
+    public function jsonToHTMLList($jsonData): string
+    {
+        $data = Json::decode($jsonData, true);
+        $html = "<ul>";
+        foreach ($data as $key => $value) {
+            if (is_array($value) || is_object($value)) {
+                $html .= "<li><a href='#'>" . $key . "</a>" . $this->jsonToHTMLList(Json::encode($value)) . "</li>";
+            } else {
+                $html .= "<li>" . $key . ": " . $value . "</li>";
+            }
+        }
+        $html .= "</ul>";
+        return $html;
     }
 }
