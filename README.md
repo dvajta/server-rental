@@ -2,59 +2,104 @@
     <a href="https://github.com/yiisoft" target="_blank">
         <img src="https://avatars0.githubusercontent.com/u/993323" height="100px">
     </a>
-    <h1 align="center">Yii 2 Advanced Project Template</h1>
+    <h1 align="center">Token-based authentication application in Yii2</h1>
     <br>
 </p>
 
-Yii 2 Advanced Project Template is a skeleton [Yii 2](http://www.yiiframework.com/) application best for
-developing complex Web applications with multiple tiers.
+To start the project, you need to clone the git repository git@github.com:dvajta/server-rental.git. After cloning the project, you need to:
 
-The template includes three tiers: front end, back end, and console, each of which
-is a separate Yii application.
+1. Run the command `composer install` in the console to install all project dependencies from the `composer.json` file.
+2. Create a database for the project in MySql and specify the connection in the project config file `common/config/main-local.php`.
+3. Configure the `Nginx` server as shown in the example.
+4. Run migrations by executing the command `php yii migrate` while in the project's root directory.
 
-The template is designed to work in a team development environment. It supports
-deploying the application in different environments.
+After completing all the steps, 2 tables will be created in the database:
+1. The `user` table, where 5 user profiles will be created using seeding.
+2. The `user_json_data` table where the Json data for the current task will be recorded.
 
-Documentation is at [docs/guide/README.md](docs/guide/README.md).
+To check the operation of authentication and recording Json data, you need to:
+1. Run the console command to generate an access token `php yii cron/get-token --login=pkrajcik --password=secret123`. For all users during data seeding, the same password `secret123` was generated. 
+To find out the login, you need to go to the user table and take the username from any record in the list.
+2. After executing the console command, a token will be generated and written to the user table. The token's lifetime for user authentication is 5 minutes. Then we go to the main page of the application where we see two forms. 
+One for adding Json data, and the other for updating. We insert the token into the form, select the data submission method, and insert the Json string we want to add. 
+If we want to update the record, then in the second form, we also select the `ID` of the entry and insert the instruction code shown as an example in the input field.
+3. To access the admin panel, you need to type `https:\\mydomain\admin`. After that, you will enter the admin panel and be able to see the list of saved data with the ability to view and delete each element.
 
-[![Latest Stable Version](https://img.shields.io/packagist/v/yiisoft/yii2-app-advanced.svg)](https://packagist.org/packages/yiisoft/yii2-app-advanced)
-[![Total Downloads](https://img.shields.io/packagist/dt/yiisoft/yii2-app-advanced.svg)](https://packagist.org/packages/yiisoft/yii2-app-advanced)
-[![build](https://github.com/yiisoft/yii2-app-advanced/workflows/build/badge.svg)](https://github.com/yiisoft/yii2-app-advanced/actions?query=workflow%3Abuild)
 
-DIRECTORY STRUCTURE
+Nginx config example
 -------------------
 
 ```
-common
-    config/              contains shared configurations
-    mail/                contains view files for e-mails
-    models/              contains model classes used in both backend and frontend
-    tests/               contains tests for common classes    
-console
-    config/              contains console configurations
-    controllers/         contains console controllers (commands)
-    migrations/          contains database migrations
-    models/              contains console-specific model classes
-    runtime/             contains files generated during runtime
-backend
-    assets/              contains application assets such as JavaScript and CSS
-    config/              contains backend configurations
-    controllers/         contains Web controller classes
-    models/              contains backend-specific model classes
-    runtime/             contains files generated during runtime
-    tests/               contains tests for backend application    
-    views/               contains view files for the Web application
-    web/                 contains the entry script and Web resources
-frontend
-    assets/              contains application assets such as JavaScript and CSS
-    config/              contains frontend configurations
-    controllers/         contains Web controller classes
-    models/              contains frontend-specific model classes
-    runtime/             contains files generated during runtime
-    tests/               contains tests for frontend application
-    views/               contains view files for the Web application
-    web/                 contains the entry script and Web resources
-    widgets/             contains frontend widgets
-vendor/                  contains dependent 3rd-party packages
-environments/            contains environment-based overrides
+# server configuration
+server {
+    listen 80;
+    server_name example.com;
+
+    set $base_root /path/to/project/root;
+    root $base_root;
+
+    #error_log /var/log/nginx/advanced.local.error.log warn;
+    #access_log /var/log/nginx/advanced.local.access.log main;
+    charset UTF-8;
+    index index.php index.html;
+
+    # remove trailing slash
+    location ~ .+/$ {
+        rewrite ^/(.+)/$ /$1 permanent;
+    }
+
+    location / {
+        root $base_root/frontend/web;
+        try_files $uri $uri/ /frontend/web/index.php$is_args$args;
+
+        # omit static files logging, and if they don't exist, avoid processing by Yii (uncomment if necessary)
+        location ~ ^/.+\.(css|js|ico|png|jpe?g|gif|svg|ttf|mp4|mov|swf|pdf|zip|rar)$ {
+            log_not_found off;
+            access_log off;
+            try_files $uri =404;
+        }
+
+        location ~ ^/assets/.+\.php(/|$) {
+            deny all;
+        }
+    }
+
+    location /admin {
+        alias $base_root/backend/web/;
+
+        # prevent the directory redirect to the URL with a trailing slash
+        location = /admin {
+            try_files $uri /backend/web/index.php$is_args$args;
+        }
+
+        try_files $uri $uri/ /backend/web/index.php$is_args$args;
+
+        # omit static files logging, and if they don't exist, avoid processing by Yii (uncomment if necessary)
+        location ~ ^/admin/.+\.(css|js|ico|png|jpe?g|gif|svg|ttf|mp4|mov|swf|pdf|zip|rar)$ {
+            log_not_found off;
+            access_log off;
+            try_files $uri =404;
+        }
+
+        location ~ ^/admin/assets/.+\.php(/|$) {
+            deny all;
+        }
+    }
+
+    location ~ ^/.+\.php(/|$) {
+        rewrite (?!^/((frontend|backend)/web|admin))^ /frontend/web$uri break;
+        rewrite (?!^/backend/web)^/admin(/.+)$ /backend/web$1 break;
+
+        #fastcgi_pass 127.0.0.1:9000; # proxy requests to a TCP socket
+        fastcgi_pass unix:/run/php/php7.4-fpm.sock; # proxy requests to a UNIX domain socket (check your www.conf file)
+        fastcgi_split_path_info ^(.+\.php)(.*)$;
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        try_files $fastcgi_script_name =404;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+}
 ```
