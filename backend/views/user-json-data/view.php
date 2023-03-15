@@ -20,7 +20,7 @@ $this->params['breadcrumbs'][] = $this->title;
         'model' => $model,
         'attributes' => [
             'id',
-            'user_id',
+            //'user_id',
             'type',
             'json:ntext',
             'created_at',

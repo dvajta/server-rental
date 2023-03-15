@@ -4,6 +4,7 @@ namespace backend\controllers;
 
 use common\models\UserJsonData;
 use backend\models\UserJsonDataSearch;
+use Yii;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
 use yii\filters\VerbFilter;
@@ -55,6 +56,10 @@ class UserJsonDataController extends Controller
      */
     public function actionView($id)
     {
+        $userItem = UserJsonData::find()->where(['user_id' => Yii::$app->user->id, 'id' => $id])->one();
+        if (!$userItem) {
+            throw new NotFoundHttpException('The requested page does not exist.');
+        }
         return $this->render('view', [
             'model' => $this->findModel($id),
         ]);
@@ -83,7 +88,7 @@ class UserJsonDataController extends Controller
      */
     protected function findModel($id)
     {
-        if (($model = UserJsonData::findOne(['id' => $id])) !== null) {
+        if (($model = UserJsonData::findOne(['id' => $id, 'user_id' => Yii::$app->user->id])) !== null) {
             return $model;
         }
 

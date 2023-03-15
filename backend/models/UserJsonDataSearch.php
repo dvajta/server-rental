@@ -2,6 +2,7 @@
 
 namespace backend\models;
 
+use Yii;
 use yii\base\Model;
 use yii\data\ActiveDataProvider;
 use common\models\UserJsonData;
@@ -40,7 +41,7 @@ class UserJsonDataSearch extends UserJsonData
      */
     public function search($params)
     {
-        $query = UserJsonData::find();
+        $query = UserJsonData::find()->where(['user_id' => Yii::$app->user->id]);
 
         // add conditions that should always apply here
 
@@ -59,7 +60,7 @@ class UserJsonDataSearch extends UserJsonData
         // grid filtering conditions
         $query->andFilterWhere([
             'id' => $this->id,
-            'user_id' => $this->user_id,
+            //'user_id' => $this->user_id,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ]);
