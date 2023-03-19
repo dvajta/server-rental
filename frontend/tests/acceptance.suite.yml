@@ -1,0 +1,10 @@
+suite_namespace: frontend\tests\acceptance
+actor: AcceptanceTester
+modules:
+    enabled:
+        - PhpBrowser:
+            url: http://fornex.loc
+        - Yii2:
+            part: init
+            configFile: 'tests/codeception/config/acceptance.php'
+        - Asserts

@@ -2,6 +2,7 @@
 
 namespace frontend\controllers;
 
+use Codeception\PHPUnit\Constraint\JsonType;
 use common\models\User;
 use common\models\UserJsonData;
 use frontend\models\AuthForm;
@@ -273,10 +274,9 @@ class SiteController extends Controller
     }
 
     /**
-     * @return false|string
      * @throws NotFoundHttpException
      */
-    public function actionAddWithToken(): string
+    public function actionAddWithToken()
     {
         if (!$this->request->isAjax){
             throw new NotFoundHttpException('The requested page does not exist.');
@@ -288,28 +288,36 @@ class SiteController extends Controller
         [$data, $token, $type] = $this->getRequestData();
 
         if (!$user = User::findByAuthToken(trim($token))) {
-            return 'User not found';
+            Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+            Yii::$app->response->statusCode = 400;
+            return ['success' => false, 'message' => 'User not found!'];
         }
 
         if (!$this->isAccess($token, $user)) {
-            return $this->accessText;
+            Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+            Yii::$app->response->statusCode = 400;
+            return ['success' => false, 'message' => $this->accessText];
         }
 
         if (!$dataId = $this->saveData($data, $user->id, $type)) {
             Yii::error(sprintf('Data not saved for the user "%s" and token %s', $user->username, $token));
-            return 'Data not saved';
+            Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+            Yii::$app->response->statusCode = 400;
+            return ['success' => false, 'message' => 'Data not saved'];
         }
 
         $indicators = $this->calculateIndicators($time_start, $memory_start);
 
-        return 'The request was successful (ID = ' . $dataId . '): ' . Json::encode($indicators);
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+        Yii::$app->response->statusCode = 200;
+        $message = 'The request was successful (ID = ' . $dataId . '): ' . Json::encode($indicators);
+        return ['success' => true, 'message' => $message];
     }
 
     /**
-     * @return string
      * @throws NotFoundHttpException
      */
-    public function actionUpdateWithToken(): string
+    public function actionUpdateWithToken()
     {
         if (!$this->request->isAjax){
             throw new NotFoundHttpException('The requested page does not exist.');
@@ -321,21 +329,33 @@ class SiteController extends Controller
         [$code, $id, $token, $type] = $this->getRequestData();
 
         if (!$user = User::findByAuthToken(trim($token))) {
-            return 'User not found!';
+            Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+            Yii::$app->response->statusCode = 400;
+            return ['success' => false, 'message' => 'User not found!'];
+
         }
 
         if (!$this->isAccess($token, $user)) {
-            return $this->accessText;
+            Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+            Yii::$app->response->statusCode = 400;
+            return ['success' => false, 'message' => $this->accessText];
         }
 
         if (!$this->updateData($user->id, $code, $id, $type)) {
             Yii::error(sprintf('Data not updated for the user "%s" and token %s', $user->username, $token));
-            return 'Data not updated! ' . Json::encode($this->error) ?? '';
+            Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+            Yii::$app->response->statusCode = 400;
+            $message = 'Data not updated! ' . Json::encode($this->error) ?? '';
+            return ['success' => false, 'message' => $message];
         }
 
         $indicators = $this->calculateIndicators($time_start, $memory_start);
 
-        return 'The request was successful: ' . Json::encode($indicators);
+        Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+        Yii::$app->response->statusCode = 200;
+        $message = 'The request was successful: ' . Json::encode($indicators);
+
+        return ['success' => true, 'message' => $message];
     }
 
     /**

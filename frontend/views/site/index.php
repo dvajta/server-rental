@@ -83,14 +83,21 @@ $methods = ['get' => 'GET', 'post' => 'POST'];
                 'X-CSRF-Token': csrfToken,
                 'X-MyToken': token
             },
-            success: function(res) {
+            success: function(res, status, jqXHR) {
                 if(!res) alert('Ошибка аутентификации');
                 $('#auth-form input[type=\"text\"], #auth-form textarea').val('');
                 const authFormResponse = $('.auth-form-response');
-                authFormResponse.text(res);
+                authFormResponse.text(res.message);
                 authFormResponse.removeClass('d-none');
-                console.log(res);
             },
+            error: function(jqXHR, textStatus, errorThrown) {
+                let response = JSON.parse(jqXHR.responseText);
+                let message = response.message;
+                $('#auth-form input[type=\"text\"], #auth-form textarea').val('');
+                const authFormResponse = $('.auth-form-response');
+                authFormResponse.text(message);
+                authFormResponse.removeClass('bg-success').addClass('bg-danger').removeClass('d-none');
+            }
         });
         submitted = true;
         reloadPage();
@@ -122,12 +129,20 @@ $methods = ['get' => 'GET', 'post' => 'POST'];
             },
             success: function(res) {
                 if(!res) alert('Ошибка аутентификации');
-                $('#auth-update-form input[type=\"text\"], #auth-form textarea').val('');
+                $('#auth-update-form input[type=\"text\"], #auth-update-form textarea').val('');
                 const authFormResponse = $('.auth-update-form-response');
-                authFormResponse.text(res);
+                authFormResponse.text(res.message);
                 authFormResponse.removeClass('d-none');
                 console.log(res);
             },
+            error: function(jqXHR, textStatus, errorThrown) {
+                let response = JSON.parse(jqXHR.responseText);
+                let message = response.message;
+                $('#auth-update-form input[type=\"text\"], #auth-update-form textarea').val('');
+                const authFormResponse = $('.auth-update-form-response');
+                authFormResponse.text(message);
+                authFormResponse.removeClass('bg-success').addClass('bg-danger').removeClass('d-none');
+            }
         });
         submitted = true;
         reloadPage();
