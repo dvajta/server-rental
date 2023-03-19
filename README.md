@@ -25,6 +25,19 @@ One for adding Json data, and the other for updating. We insert the token into t
 If we want to update the record, then in the second form, we also select the `ID` of the entry and insert the instruction code shown as an example in the input field.
 3. To access the admin panel, you need to type `https:\\mydomain\admin`. After that, you will enter the admin panel and be able to see the list of saved data with the ability to view and delete each element.
 
+ Задача    | Оценка | Затрачено | Комментарий |
+|---------|----------|----------|-------------|
+| Настройка окружения | 1 час | 2 часа | Решил настроить на Nginx (ранее не настраивал) |
+| Установка фреймворка | 15 мин | 15 мин | 
+| Скрипт №1 | 30 мин | 1 час | 
+| Скрипт №2 | 30 мин | 30 мин | большая часть логики уже была описана в 1-м скрипте.
+| Скрипт №3 | 40 мин | 2 часа | Не сразу понял что от меня требуется 
+| Скрипт №4 | 30 мин | 1.5 часа | Не сразу понял, что список нужно чтоб форммировался из любого объекта
+| Тесты | 1 час | 3 часа | Не писал тесты, нужно было разбираться.
+
+Ссылка на проект: https://jemadar.ru/
+
+
 
 Nginx config example
 -------------------
